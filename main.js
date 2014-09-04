@@ -36,7 +36,8 @@ var BostonBusMap = (function() {
 
         // display popup on click
         var handler = function (evt) {
-            var stop = this.stop;
+            var element = this;
+            var stop = element.stop;
 
             $.ajax({url: 'http://realtime.mbta.com/developer/api/v2/predictionsbystop',
                 data: {
@@ -81,10 +82,11 @@ var BostonBusMap = (function() {
 
                     var html = html_pieces.join("<br /><br />");
                     makePopup(stop, html);
-
+                    select(element);
                 },
                 error: function () {
                     makePopup(stop, '');
+                    select(element);
                 }});
         };
 
@@ -130,8 +132,6 @@ var BostonBusMap = (function() {
 
         var overlays = [];
 
-        var selected = null;
-
         var clearOverlays = function() {
             _.each(overlays, function(overlay) {
                 map.removeOverlay(overlay);
@@ -143,7 +143,7 @@ var BostonBusMap = (function() {
             var position = ol.proj.transform([parseFloat(stop['stop_lon']), parseFloat(stop['stop_lat'])], 'EPSG:4326', 'EPSG:3857');
             $(popupElement).show();
             popup.setPosition(position);
-            
+
             $(popupElement).html("<b>" + stop.stop_name + "</b><br /><br />" + text);
         };
 
@@ -165,6 +165,13 @@ var BostonBusMap = (function() {
             map.addOverlay(busOverlay);
             busOverlay.setPosition(position);
             overlays.push(busOverlay);
+            return busstop;
+        };
+
+        var select = function(element) {
+            $(".selected").removeClass("selected");
+            $(element).addClass("selected");
+            console.log(element);
         };
 
         var update = function() {
@@ -175,12 +182,40 @@ var BostonBusMap = (function() {
                     'format': 'json',
                     'lat': center[1],
                     'lon': center[0]}, function (data) {
-                    $(popupElement).popover('destroy');
-                    clearOverlays();
+
                     var stops = _.sortBy(data.stop, function(stop) { return parseFloat(stop.stop_lat); });
                     stops = _.filter(stops, function(stop) { return !stop.parent_station; });
 
-                    _.each(stops, addStop);
+                    var old_selected = $(".selected");
+                    console.log(old_selected.length);
+                    var old_selected_element = null;
+                    if (old_selected.length) {
+                        old_selected_element = old_selected[0];
+                    }
+
+
+
+                    $(popupElement).popover('destroy');
+                    clearOverlays();
+
+                    var elements = _.map(stops, addStop);
+
+                    var keep_selected = false;
+                    _.each(elements, function (element) {
+                        if (element.hasOwnProperty("stop")) {
+                            var stop = element.stop;
+                            if (stop.stop_id === old_selected_element.stop.stop_id) {
+                                select(element);
+                                keep_selected = true;
+                            }
+                        }
+                    });
+
+                    if (!keep_selected) {
+                        clearPopup();
+                    }
+                    old_selected.removeClass("selected");
+
                 });
         };
 
