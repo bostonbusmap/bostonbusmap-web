@@ -1,7 +1,7 @@
 /**
  * Created by schneg on 8/29/14.
  */
-(function() {
+var BostonBusMap = (function() {
     var bostonLat = 42.3581;
     var bostonLon = -71.0636;
     var bostonPosition = ol.proj.transform([bostonLon, bostonLat], 'EPSG:4326', 'EPSG:3857');
@@ -9,132 +9,92 @@
     //var apikey = "wX9NwuHnZU2ToO7GmGR9uw";
     var apikey = "gmozilm-CkSCh8CE53wvsw";
 
+    var view = new ol.View({
+        center: bostonPosition,
+        zoom: 13
+    });
+    var map = new ol.Map({
+        target: 'map',
+        layers: [
+            new ol.layer.Tile({
+                source: new ol.source.MapQuest({layer: 'osm'})
+            })
+        ],
+        view: view
+    });
     $(function() {
-        var iconStyle = new ol.style.Style({
-            image: new ol.style.Icon(/** @type {olx.style.IconOptions} */ ({
-                anchor: [0.5, 46],
-                anchorXUnits: 'fraction',
-                anchorYUnits: 'pixels',
-                opacity: 1,
-                src: 'data/busstop.png'
-            }))
-        });
-
-
-        var vectorSource = new ol.source.Vector();
-
-        var vectorLayer = new ol.layer.Vector({
-            source: vectorSource
-        });
-
-        var view = new ol.View({
-            center: bostonPosition,
-            zoom: 13
-        });
-        var map = new ol.Map({
-            target: 'map',
-            layers: [
-                new ol.layer.Tile({
-                    source: new ol.source.MapQuest({layer: 'osm'})
-                }),
-                vectorLayer
-            ],
-            view: view
-        });
 
         var update_interval_id = null;
-        map.getView().on('change:center', function() {
+        map.getView().on('change:center', function () {
             if (update_interval_id !== null) {
                 clearTimeout(update_interval_id);
             }
-            update_interval_id = setTimeout(function() {
+            update_interval_id = setTimeout(function () {
                 update();
             }, 200);
         });
 
         // display popup on click
-        var handler = function(evt) {
-            var feature = map.forEachFeatureAtPixel(evt.pixel,
-                function(feature, layer) {
-                    return feature;
-                });
-            if (feature) {
-                console.log(element);
-                var geometry = feature.getGeometry();
-                var coord = geometry.getCoordinates();
+        var handler = function (evt) {
+            var stop = this.stop;
 
-                $.ajax({url: 'http://realtime.mbta.com/developer/api/v2/predictionsbystop',
-                    data: {
-                        'api_key': apikey,
-                        'format': 'json',
-                        'stop': feature.get('id')
-                    }, success: function(result) {
-                        var html = "";
-
-                        var predictions = _.map(result.mode, function(mode) {
-                            return _.map(mode.route, function(route) {
-                                if (!route) return [];
-                                return _.map(route.direction, function(direction) {
-                                    return _.map(direction.trip, function (trip) {
-                                        return {
-                                            route: route.route_name,
-                                            trip: trip.trip_headsign,
-                                            minutes: parseInt(trip.pre_away / 60)
-                                        };
-                                    });
+            $.ajax({url: 'http://realtime.mbta.com/developer/api/v2/predictionsbystop',
+                data: {
+                    'api_key': apikey,
+                    'format': 'json',
+                    'stop': stop.stop_id
+                }, success: function (result) {
+                    var predictions = _.map(result.mode, function (mode) {
+                        return _.map(mode.route, function (route) {
+                            if (!route) return [];
+                            return _.map(route.direction, function (direction) {
+                                return _.map(direction.trip, function (trip) {
+                                    return {
+                                        route: route.route_name,
+                                        trip: trip.trip_headsign,
+                                        minutes: parseInt(trip.pre_away / 60)
+                                    };
                                 });
                             });
                         });
+                    });
 
-                        predictions = _.flatten(predictions);
-                        predictions = _.sortBy(predictions, function(prediction) { return prediction.minutes; });
-                        predictions = _.take(predictions, 3);
-                        console.log(predictions);
-                        var html_pieces = _.map(predictions, function(prediction) {
-                            html = "Route <b>" + prediction.route + "</b><br />";
-                            html += prediction.trip + "<br />";
-                            var minutes = prediction.minutes;
-                            if (minutes >= 1) {
-                                html += "Arriving in <b>" + minutes + "</b> minutes";
-                            }
-                            else {
-                                html += "Arriving <b>now</b>!";
-                            }
+                    predictions = _.flatten(predictions);
+                    predictions = _.sortBy(predictions, function (prediction) {
+                        return prediction.minutes;
+                    });
+                    predictions = _.take(predictions, 3);
 
-                            return html;
-                        });
+                    var html_pieces = _.map(predictions, function (prediction) {
+                        html = "Route <b>" + prediction.route + "</b><br />";
+                        html += prediction.trip + "<br />";
+                        var minutes = prediction.minutes;
+                        if (minutes >= 1) {
+                            html += "Arriving in <b>" + minutes + "</b> minutes";
+                        }
+                        else {
+                            html += "Arriving <b>now</b>!";
+                        }
 
-                        var html = html_pieces.join("<br /><br />");
+                        return html;
+                    });
 
-                        popup.setPosition(coord);
-                        $(element).popover('destroy');
-                        $(element).popover({
-                            'placement': 'top',
-                            'html': true,
-                            'content': feature.get('name') + "<br />" + html
-                        });
-                        $(element).popover('show');
-                    },
-                    error: function() {
-                        popup.setPosition(coord);
-                        $(element).popover('destroy');
-                        $(element).popover({
-                            'placement': 'top',
-                            'html': true,
-                            'content': feature.get('name')
-                        });
-                        $(element).popover('show');
-                    }});
+                    var html = html_pieces.join("<br /><br />");
+                    makePopup(stop, html);
 
-            } else {
-                $(element).popover('destroy');
-            }
+                },
+                error: function () {
+                    makePopup(stop, '');
+                }});
         };
-        map.on('click', handler);
 
-        var element = document.getElementById('popup');
+        map.on('click', function() {
+            clearPopup();
+        });
+
+        var popupElement = document.getElementById('popup_info');
         var popup = new ol.Overlay({
-            element: element,
+            element: popupElement,
             positioning: 'bottom-center',
             stopEvent: false
         });
@@ -168,6 +128,45 @@
             map.render();
         }, false);
 
+        var overlays = [];
+
+        var selected = null;
+
+        var clearOverlays = function() {
+            _.each(overlays, function(overlay) {
+                map.removeOverlay(overlay);
+            });
+            overlays = [];
+        };
+
+        var makePopup = function(stop, text) {
+            var position = ol.proj.transform([parseFloat(stop['stop_lon']), parseFloat(stop['stop_lat'])], 'EPSG:4326', 'EPSG:3857');
+            $(popupElement).show();
+            popup.setPosition(position);
+            
+            $(popupElement).html("<b>" + stop.stop_name + "</b><br /><br />" + text);
+        };
+
+        var clearPopup = function() {
+            $(popupElement).hide();
+        };
+
+        var addStop = function(stop) {
+            var position = ol.proj.transform([parseFloat(stop['stop_lon']), parseFloat(stop['stop_lat'])], 'EPSG:4326', 'EPSG:3857');
+            var busstop = document.getElementById('busstop').cloneNode(true);
+            busstop.stop = stop;
+
+            var busOverlay = new ol.Overlay({
+                positioning: 'bottom-center',
+                element: busstop,
+                stopEvent: true
+            });
+            busstop.onclick = handler;
+            map.addOverlay(busOverlay);
+            busOverlay.setPosition(position);
+            overlays.push(busOverlay);
+        };
+
         var update = function() {
             var center = ol.proj.transform(map.getView().getCenter(), 'EPSG:3857', 'EPSG:4326');
 
@@ -176,23 +175,17 @@
                     'format': 'json',
                     'lat': center[1],
                     'lon': center[0]}, function (data) {
-                    $(element).popover('destroy');
-                    vectorSource.clear();
-                    var features = _.map(data.stop, function (stop) {
-                        var position = ol.proj.transform([parseFloat(stop['stop_lon']), parseFloat(stop['stop_lat'])], 'EPSG:4326', 'EPSG:3857');
-                        var iconFeature = new ol.Feature({
-                            geometry: new ol.geom.Point(position),
-                            name: stop['stop_name'],
-                            id: stop['stop_id']
-                        });
-                        iconFeature.setStyle(iconStyle);
+                    $(popupElement).popover('destroy');
+                    clearOverlays();
+                    var stops = _.sortBy(data.stop, function(stop) { return parseFloat(stop.stop_lat); });
+                    stops = _.filter(stops, function(stop) { return !stop.parent_station; });
 
-                        return iconFeature;
-                    });
-                    vectorSource.addFeatures(features);
+                    _.each(stops, addStop);
                 });
         };
 
         update();
     });
+
+    return {map:map};
 })();

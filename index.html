@@ -25,37 +25,50 @@
     <div class="button">
         <button id="geolocate">Geolocate Me!</button>
     </div>
+    <div class="mode_switch">
+        <select id="mode_switch">
+            <option name="stops">Stops</option>
+            <option name="vehicles">Vehicles</option>
+        </select>
+    </div>
     <div id="popup" style=""></div>
     <img id="geolocation_marker" src="data/geolocation_marker.png" />
     <div style="display: none;">
         <div id="marker" title="Marker"></div>
-        <img class="overlay" src="./data/busstop.png" />
+        <div style="" id="popup_info" class="popup_info"></div>
+        <div id="busstop" class="popup_container">
+            <img src="./data/busstop.png" />
+        </div>
     </div>
+
+
     <style type="text/css">
+
       .arrow { visibility: hidden; }
-      .popover {
-          z-index: auto;
+      .popup_container img {
+          z-index: 0;
+          position: relative;
       }
-      .popover-content {
-          min-height: 100px;
+      .popup_info {
+          background-color: white;
+          position: relative;
+          border: 1px solid black;
           min-width: 200px;
-      }
-      .popover.top {
-          margin-top: -40px;
+          min-height: 100px;
+          z-index: 5;
+          margin-bottom: 40px;
+          padding: 2px;
       }
       .button {
           position: absolute;
           bottom: 40px;
           left: 10px;
       }
-      #info {
-          position: absolute;
-          font-size: 0.7em;
-          top: 10px;
-          right: 10px;
-          background-color: lightgrey;
-          padding: 4px;
-      }
+        .mode_switch {
+            position: absolute;
+            top: 40px;
+            right: 10px;
+        }
     </style>
   </body>
 </html>
