@@ -4,16 +4,24 @@
 var BostonBusMap = (function() {
     var bostonLat = 42.3581;
     var bostonLon = -71.0636;
-    var bostonPosition = ol.proj.transform([bostonLon, bostonLat], 'EPSG:4326', 'EPSG:3857');
-
-    var localStorage = window.localStorage;
+    var bostonPosition = [bostonLon, bostonLat];
 
     //var apikey = "wX9NwuHnZU2ToO7GmGR9uw";
     var apikey = "gmozilm-CkSCh8CE53wvsw";
 
+    var startingPosition = bostonPosition;
+    if (window.localStorage.position) {
+        startingPosition = JSON.parse(window.localStorage.position);
+    }
+
+    var startingZoom = 13;
+    if (window.localStorage.zoom) {
+        startingZoom = JSON.parse(window.localStorage.zoom);
+    }
+
     var view = new ol.View({
-        center: bostonPosition,
-        zoom: 13
+        center: ol.proj.transform(startingPosition, 'EPSG:4326', 'EPSG:3857'),
+        zoom: startingZoom
     });
     var map = new ol.Map({
         target: 'map',
@@ -24,6 +32,33 @@ var BostonBusMap = (function() {
         ],
         view: view
     });
+
+    var favorites = {};
+    if (window.localStorage.favorites) {
+        favorites = JSON.parse(window.localStorage.favorites);
+    }
+
+    var toggleFavorite = function(stop_id) {
+        if (favorites[stop_id]) {
+            delete favorites[stop_id];
+        }
+        else {
+            favorites[stop_id] = true;
+        }
+        window.localStorage.favorites = JSON.stringify(favorites);
+    };
+
+    var full_star_url = './data/full_star.png';
+    var empty_star_url = './data/empty_star.png';
+    var updateStar = function(element, stop_id) {
+        if (favorites[stop_id]) {
+            $(element).prop('src', full_star_url);
+        }
+        else {
+            $(element).prop('src', empty_star_url);
+        }
+    };
+
     $(function() {
 
         var update_interval_id = null;
@@ -34,6 +69,9 @@ var BostonBusMap = (function() {
             update_interval_id = setTimeout(function () {
                 update();
             }, 200);
+
+            window.localStorage.position = JSON.stringify(ol.proj.transform(map.getView().getCenter(), 'EPSG:3857', 'EPSG:4326'));
+            window.localStorage.zoom = JSON.stringify(map.getView().getZoom());
         });
 
         // display popup on click
@@ -112,7 +150,7 @@ var BostonBusMap = (function() {
         var popup = new ol.Overlay({
             element: popupElement,
             positioning: 'bottom-center',
-            stopEvent: false
+            stopEvent: true
         });
         map.addOverlay(popup);
 
@@ -161,7 +199,24 @@ var BostonBusMap = (function() {
             popup.setPosition(position);
 
             var title = "<span class='title'>" + stop.stop_name + "</span><br /><br />";
-            var right = "<div class='popup_info_right'></div>";
+            var right = "<div class='popup_info_right'>";
+            var star_url = empty_star_url;
+            if (favorites[stop['stop_id']]) {
+                star_url = full_star_url;
+            }
+            right += "<img class='star' src='" + star_url + "' onclick='event.preventDefault(); BostonBusMap.toggleFavorite(" + JSON.stringify(stop['stop_id']) + "); BostonBusMap.updateStar(this, " + JSON.stringify(stop['stop_id']) + "); ' />";
+            if (alerts.length) {
+                right += ""
+                right += "<br /><br /><br />";
+                if (alerts.length === 1) {
+                    right += "<a href='#' class='alert_text'>1 alert</a>";
+                }
+                else {
+                    right += "<a href='#' class='alert_text'>" + alerts.length + " alerts</a>";
+                }
+            }
+
+            right += "</div>";
             $(popupElement).html(title + right + text);
         };
 
@@ -246,5 +301,5 @@ var BostonBusMap = (function() {
         update();
     });
 
-    return {map:map};
+    return {map:map, toggleFavorite:toggleFavorite, updateStar:updateStar};
 })();
