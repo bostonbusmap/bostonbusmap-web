@@ -6,6 +6,8 @@ var BostonBusMap = (function() {
     var bostonLon = -71.0636;
     var bostonPosition = ol.proj.transform([bostonLon, bostonLat], 'EPSG:4326', 'EPSG:3857');
 
+    var localStorage = window.localStorage;
+
     //var apikey = "wX9NwuHnZU2ToO7GmGR9uw";
     var apikey = "gmozilm-CkSCh8CE53wvsw";
 
@@ -50,15 +52,22 @@ var BostonBusMap = (function() {
                             if (!route) return [];
                             return _.map(route.direction, function (direction) {
                                 return _.map(direction.trip, function (trip) {
-                                    return {
+                                    var obj = {
                                         route: route.route_name,
                                         trip: trip.trip_headsign,
-                                        minutes: parseInt(trip.pre_away / 60)
+                                        minutes: parseInt(trip.pre_away / 60),
+                                        vehicle_id: null
                                     };
+                                    if (trip.vehicle) {
+                                        obj.vehicle_id = trip.vehicle.vehicle_id;
+                                    }
+                                    return obj;
                                 });
                             });
                         });
                     });
+
+                    var alerts = result.alert_headers;
 
                     predictions = _.flatten(predictions);
                     predictions = _.sortBy(predictions, function (prediction) {
@@ -67,7 +76,11 @@ var BostonBusMap = (function() {
                     predictions = _.take(predictions, 3);
 
                     var html_pieces = _.map(predictions, function (prediction) {
-                        html = "Route <b>" + prediction.route + "</b><br />";
+                        html = "Route <b>" + prediction.route + "</b>";
+                        if (prediction.vehicle_id) {
+                            html += ", vehicle <b>" + prediction.vehicle_id + "</b>";
+                        }
+                        html += "<br />";
                         html += prediction.trip + "<br />";
                         var minutes = prediction.minutes;
                         if (minutes >= 1) {
@@ -81,17 +94,18 @@ var BostonBusMap = (function() {
                     });
 
                     var html = html_pieces.join("<br /><br />");
-                    makePopup(stop, html);
+                    makePopup(stop, html, alerts);
                     select(element);
                 },
                 error: function () {
-                    makePopup(stop, '');
+                    makePopup(stop, '', []);
                     select(element);
                 }});
         };
 
         map.on('click', function() {
             clearPopup();
+            clearSelected();
         });
 
         var popupElement = document.getElementById('popup_info');
@@ -103,20 +117,22 @@ var BostonBusMap = (function() {
         map.addOverlay(popup);
 
         var markerEl = document.getElementById('geolocation_marker');
-        var marker = new ol.Overlay({
+        var getlocateMarker = new ol.Overlay({
             positioning: 'center-center',
             element: markerEl,
             stopEvent: false
         });
-        map.addOverlay(marker);
+        map.addOverlay(getlocateMarker);
 
         var geolocation = new ol.Geolocation({
             projection: view.getProjection(),
-            tracking: true
+            tracking: false
         });
         geolocation.on('change:position', function() {
             view.setCenter(geolocation.getPosition());
             view.setResolution(2.388657133911758);
+
+            getlocateMarker.setPosition(geolocation.getPosition());
 
             geolocation.setTracking(false);
         });
@@ -139,16 +155,23 @@ var BostonBusMap = (function() {
             overlays = [];
         };
 
-        var makePopup = function(stop, text) {
+        var makePopup = function(stop, text, alerts) {
             var position = ol.proj.transform([parseFloat(stop['stop_lon']), parseFloat(stop['stop_lat'])], 'EPSG:4326', 'EPSG:3857');
             $(popupElement).show();
             popup.setPosition(position);
 
-            $(popupElement).html("<b>" + stop.stop_name + "</b><br /><br />" + text);
+            var title = "<span class='title'>" + stop.stop_name + "</span><br /><br />";
+            var right = "<div class='popup_info_right'></div>";
+            $(popupElement).html(title + right + text);
         };
 
         var clearPopup = function() {
             $(popupElement).hide();
+        };
+
+        var clearSelected = function() {
+            $(".selected").children("img").prop("src", "./data/busstop.png");
+            $(".selected").removeClass("selected");
         };
 
         var addStop = function(stop) {
@@ -169,9 +192,9 @@ var BostonBusMap = (function() {
         };
 
         var select = function(element) {
-            $(".selected").removeClass("selected");
+            clearSelected();
             $(element).addClass("selected");
-            console.log(element);
+            $(element).children("img").prop('src', './data/busstop_selected.png');
         };
 
         var update = function() {
@@ -187,7 +210,6 @@ var BostonBusMap = (function() {
                     stops = _.filter(stops, function(stop) { return !stop.parent_station; });
 
                     var old_selected = $(".selected");
-                    console.log(old_selected.length);
                     var old_selected_element = null;
                     if (old_selected.length) {
                         old_selected_element = old_selected[0];
@@ -201,15 +223,17 @@ var BostonBusMap = (function() {
                     var elements = _.map(stops, addStop);
 
                     var keep_selected = false;
-                    _.each(elements, function (element) {
-                        if (element.hasOwnProperty("stop")) {
-                            var stop = element.stop;
-                            if (stop.stop_id === old_selected_element.stop.stop_id) {
-                                select(element);
-                                keep_selected = true;
+                    if (old_selected_element) {
+                        _.each(elements, function (element) {
+                            if (element.hasOwnProperty("stop")) {
+                                var stop = element.stop;
+                                if (stop.stop_id === old_selected_element.stop.stop_id) {
+                                    select(element);
+                                    keep_selected = true;
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
 
                     if (!keep_selected) {
                         clearPopup();
