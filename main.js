@@ -2,14 +2,7 @@
  * Created by schneg on 8/29/14.
  */
 var BostonBusMap = (function() {
-    var bostonLat = 42.3581;
-    var bostonLon = -71.0636;
-    var bostonPosition = [bostonLon, bostonLat];
-
-    //var apikey = "wX9NwuHnZU2ToO7GmGR9uw";
-    var apikey = "gmozilm-CkSCh8CE53wvsw";
-
-    var startingPosition = bostonPosition;
+    var startingPosition = Provider.startingLocation;
     if (window.localStorage.position) {
         startingPosition = JSON.parse(window.localStorage.position);
     }
@@ -101,12 +94,7 @@ var BostonBusMap = (function() {
             var element = this;
             var stop = element.stop;
 
-            $.ajax({url: 'http://realtime.mbta.com/developer/api/v2/predictionsbystop',
-                data: {
-                    'api_key': apikey,
-                    'format': 'json',
-                    'stop': stop.stop_id
-                }, success: function (result) {
+            Provider.getPredictionsForStop({'stop_id' : stop.stop_id}, function (result) {
                     var predictions = _.map(result.mode, function (mode) {
                         return _.map(mode.route, function (route) {
                             if (!route) return [];
@@ -156,11 +144,10 @@ var BostonBusMap = (function() {
                     var html = html_pieces.join("<br /><br />");
                     makePopup(stop, html, alerts);
                     select(element);
-                },
-                error: function () {
+                }, function () {
                     makePopup(stop, '', []);
                     select(element);
-                }});
+                });
         };
 
         map.on('click', function() {
@@ -203,7 +190,7 @@ var BostonBusMap = (function() {
         geolocateBtn.addEventListener('click', function() {
             geolocation.setTracking(true); // Start position tracking
 
-            map.on('postcompose', render);
+            //map.on('postcompose', render);
             map.render();
         }, false);
 
@@ -297,47 +284,42 @@ var BostonBusMap = (function() {
         var update = function() {
             var center = ol.proj.transform(map.getView().getCenter(), 'EPSG:3857', 'EPSG:4326');
 
-            $.get('http://realtime.mbta.com/developer/api/v2/stopsbylocation',
-                {'api_key': apikey,
-                    'format': 'json',
-                    'lat': center[1],
-                    'lon': center[0]}, function (data) {
+            Provider.getStopsByLocation({lat: center[1], lon: center[0]}, function(stops) {
+                stops = _.sortBy(stops, function(stop) { return parseFloat(stop.stop_lat); });
+                stops = _.filter(stops, function(stop) { return !stop.parent_station; });
 
-                    var stops = _.sortBy(data.stop, function(stop) { return parseFloat(stop.stop_lat); });
-                    stops = _.filter(stops, function(stop) { return !stop.parent_station; });
-
-                    var old_selected = $(".selected");
-                    var old_selected_element = null;
-                    if (old_selected.length) {
-                        old_selected_element = old_selected[0];
-                    }
+                var old_selected = $(".selected");
+                var old_selected_element = null;
+                if (old_selected.length) {
+                    old_selected_element = old_selected[0];
+                }
 
 
 
-                    $(popupElement).popover('destroy');
-                    clearOverlays();
+                $(popupElement).popover('destroy');
+                clearOverlays();
 
-                    var elements = _.map(stops, addStop);
+                var elements = _.map(stops, addStop);
 
-                    var keep_selected = false;
-                    if (old_selected_element) {
-                        _.each(elements, function (element) {
-                            if (element.hasOwnProperty("stop")) {
-                                var stop = element.stop;
-                                if (stop.stop_id === old_selected_element.stop.stop_id) {
-                                    select(element);
-                                    keep_selected = true;
-                                }
+                var keep_selected = false;
+                if (old_selected_element) {
+                    _.each(elements, function (element) {
+                        if (element.hasOwnProperty("stop")) {
+                            var stop = element.stop;
+                            if (stop.stop_id === old_selected_element.stop.stop_id) {
+                                select(element);
+                                keep_selected = true;
                             }
-                        });
-                    }
+                        }
+                    });
+                }
 
-                    if (!keep_selected) {
-                        clearPopup();
-                    }
-                    old_selected.removeClass("selected");
+                if (!keep_selected) {
+                    clearPopup();
+                }
+                old_selected.removeClass("selected");
 
-                });
+            });
         };
 
         update();
