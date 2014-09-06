@@ -38,14 +38,21 @@ var BostonBusMap = (function() {
         favorites = JSON.parse(window.localStorage.favorites);
     }
 
+    console.log(favorites);
+    console.log(_.keys(favorites));
+
     var toggleFavorite = function(stop_id) {
         if (favorites[stop_id]) {
             delete favorites[stop_id];
+            $("option[value=" + JSON.stringify(stop_id) + "]").remove();
         }
         else {
             favorites[stop_id] = true;
+            $("select").append($("<option />").val(stop_id).html(stop_id));
         }
         window.localStorage.favorites = JSON.stringify(favorites);
+
+
     };
 
     var full_star_url = './data/full_star.png';
@@ -57,6 +64,17 @@ var BostonBusMap = (function() {
         else {
             $(element).prop('src', empty_star_url);
         }
+    };
+
+    var showAlert = function(alerts) {
+        console.log(alerts);
+        var ul = "<ul>";
+        _.each(alerts, function(alert) {
+            ul += "<li>" + alert.header_text + "</li>";
+        });
+        ul += "</ul>";
+        $("#dialog").html(ul);
+        $("#dialog").dialog();
     };
 
     $(function() {
@@ -72,6 +90,10 @@ var BostonBusMap = (function() {
 
             window.localStorage.position = JSON.stringify(ol.proj.transform(map.getView().getCenter(), 'EPSG:3857', 'EPSG:4326'));
             window.localStorage.zoom = JSON.stringify(map.getView().getZoom());
+        });
+
+        _.each(_.keys(favorites), function(favorite) {
+            $("select").append($("<option />").val(favorite).html(favorite));
         });
 
         // display popup on click
@@ -144,6 +166,7 @@ var BostonBusMap = (function() {
         map.on('click', function() {
             clearPopup();
             clearSelected();
+            $("#dialog").dialog("close");
         });
 
         var popupElement = document.getElementById('popup_info');
@@ -184,6 +207,18 @@ var BostonBusMap = (function() {
             map.render();
         }, false);
 
+        var selectFavorite = document.getElementById('selectFavorite');
+        selectFavorite.addEventListener('click', function() {
+            var ul = "<select>";
+            _.each(_.keys(favorites), function(favorite) {
+                ul += "<a href='#' onclick=\"select";
+            });
+            ul += "</select>";
+            $("#dialog").html(ul);
+            $("#dialog").dialog();
+
+        });
+
         var overlays = [];
 
         var clearOverlays = function() {
@@ -192,6 +227,7 @@ var BostonBusMap = (function() {
             });
             overlays = [];
         };
+
 
         var makePopup = function(stop, text, alerts) {
             var position = ol.proj.transform([parseFloat(stop['stop_lon']), parseFloat(stop['stop_lat'])], 'EPSG:4326', 'EPSG:3857');
@@ -209,10 +245,10 @@ var BostonBusMap = (function() {
                 right += ""
                 right += "<br /><br /><br />";
                 if (alerts.length === 1) {
-                    right += "<a href='#' class='alert_text'>1 alert</a>";
+                    right += "<a href='#' class='alert_text' onclick='BostonBusMap.showAlert(" + JSON.stringify(alerts) + "); event.preventDefault(); '>1 Alert</a>";
                 }
                 else {
-                    right += "<a href='#' class='alert_text'>" + alerts.length + " alerts</a>";
+                    right += "<a href='#' class='alert_text' onclick='BostonBusMap.showAlert(" + JSON.stringify(alerts) + "); event.preventDefault(); '>" + alerts.length + " Alerts</a>";
                 }
             }
 
@@ -250,6 +286,12 @@ var BostonBusMap = (function() {
             clearSelected();
             $(element).addClass("selected");
             $(element).children("img").prop('src', './data/busstop_selected.png');
+        };
+
+        var selectStop = function(stop_id) {
+            clearSelected();
+            // TODO: trigger stopsbylocation for particular lat/lon then select particular stop id
+            throw new Exception("Unimplemented");
         };
 
         var update = function() {
@@ -301,5 +343,5 @@ var BostonBusMap = (function() {
         update();
     });
 
-    return {map:map, toggleFavorite:toggleFavorite, updateStar:updateStar};
+    return {map:map, toggleFavorite:toggleFavorite, updateStar:updateStar, showAlert: showAlert};
 })();

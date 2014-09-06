@@ -25,15 +25,8 @@
     </script>
     <div class="button">
         <button id="geolocate">Center on location</button>
+        <button id="selectFavorite">Select a favorite stop</button>
     </div>
-    <!-- TODO
-    <div class="mode_switch">
-        <select id="mode_switch">
-            <option name="stops">Stops</option>
-            <option name="vehicles">Vehicles</option>
-        </select>
-    </div>
-    -->
     <div id="popup" style=""></div>
     <img id="geolocation_marker" src="data/geolocation_marker.png" />
     <div style="display: none;">
@@ -54,6 +47,10 @@
         font-size: 14px;
     }
       .arrow { visibility: hidden; }
+      .popup_container {
+          width: 30px;
+          height: 36px;
+      }
       .popup_container img {
           z-index: 0;
           position: relative;
@@ -92,6 +89,12 @@
         }
         body {
             font-size: 12px;
+        }
+        .ui-dialog {
+            background-color: white;
+            position: relative;
+            z-index: 100;
+            border: 3px solid black;
         }
     </style>
   </body>
